@@ -42,6 +42,12 @@ class Migration_remove_duplicate_links extends Migration
         $builder->having('count > 1');
         $duplicated_links = $builder->get();
 
+        if ($duplicated_links === false) {
+            fwrite(STDERR, '[remove_duplicate_links] query failed: ' . json_encode($this->db->error()) . PHP_EOL);
+            $this->db->transComplete();
+            return;
+        }
+
         $builder = $this->db->table('attribute_links');
 
         foreach ($duplicated_links->getResultArray() as $duplicated_link) {
