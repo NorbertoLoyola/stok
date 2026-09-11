@@ -32,11 +32,13 @@ function executeScript(string $path, bool $withTransaction = false): bool
                 $success = false;
                 foreach ($db->error() as $error) {
                     log_message('error', "error: $error");
+                    fwrite(STDERR, '[executeScript] ' . json_encode($error) . " | statement: $statement" . PHP_EOL);
                 }
             }
         }
     } catch (Exception $e) {
         log_message('error', "Could not migrate to $version: " . $e->getMessage());
+        fwrite(STDERR, "[executeScript] Exception: " . $e->getMessage() . PHP_EOL);
         if ($withTransaction) {
             $db->transRollback();
         }
