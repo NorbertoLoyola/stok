@@ -29,9 +29,21 @@ function executeScript(string $path, bool $withTransaction = false): bool
             $hadError = $withTransaction ? !$db->query($statement) : !$db->simpleQuery($statement);
 
             if ($hadError) {
-                $success = false;
-                foreach ($db->error() as $error) {
-                    log_message('error', "error: $error");
+                $error = $db->error();
+
+                // These SQL scripts are meant to be safely re-runnable (many
+                // statements already use IF NOT EXISTS / INSERT IGNORE), but
+                // a non-transactional run that fails partway commits its DDL
+                // regardless. On retry, whatever already applied trips one
+                // of these "already done" MySQL error codes; treat those as
+                // informational instead of aborting the whole migration.
+                $alreadyAppliedCodes = [1050, 1051, 1060, 1061, 1062, 1146];
+
+                if (in_array($error['code'] ?? null, $alreadyAppliedCodes, true)) {
+                    log_message('info', "Skipping already-applied change ({$error['code']}): {$error['message']}");
+                } else {
+                    $success = false;
+                    log_message('error', 'error: ' . json_encode($error));
                     fwrite(STDERR, '[executeScript] ' . json_encode($error) . " | statement: $statement" . PHP_EOL);
                 }
             }
