@@ -41,5 +41,16 @@ abstract class BaseController extends Controller
 
         // Preload any models, libraries, etc, here.
         // $this->session = service('session');
+
+        // Some managed MySQL hosts (e.g. Aiven) enforce sql_require_primary_key
+        // by default, which breaks this app's use of CREATE TEMPORARY TABLE with
+        // only a plain INDEX (no PRIMARY KEY) for report/stats aggregation.
+        // Older local MySQL versions don't know this session variable, so ignore
+        // failures silently instead of breaking every request in dev.
+        try {
+            db_connect()->simpleQuery('SET SESSION sql_require_primary_key = 0');
+        } catch (\Throwable $e) {
+            // Ignore: variable not supported on this MySQL version.
+        }
     }
 }
