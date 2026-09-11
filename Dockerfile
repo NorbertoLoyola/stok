@@ -31,4 +31,7 @@ RUN chmod 750 /app/writable/logs /app/writable/uploads /app/writable/cache /app/
     && chmod 640 /app/writable/uploads/importCustomers.csv \
     && ln -s /app/*[^public] /var/www \
     && rm -rf /var/www/html \
-    && ln -nsf /app/public /var/www/html
+    && ln -nsf /app/public /var/www/html \
+    && chmod +x /app/docker/entrypoint.sh
+
+ENTRYPOINT ["/app/docker/entrypoint.sh"]
