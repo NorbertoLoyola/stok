@@ -18,6 +18,13 @@ function executeScript(string $path, bool $withTransaction = false): bool
 
     $db = Database::connect();
 
+    // Aiven's managed MySQL enforces sql_require_primary_key by default,
+    // which several legacy OSPOS table definitions (KEY/UNIQUE but no
+    // literal PRIMARY KEY) violate. Best-effort relax it for this session;
+    // if the DB user lacks privilege to change it, the affected CREATE
+    // TABLE statements below will still fail with their own clear error.
+    $db->simpleQuery('SET SESSION sql_require_primary_key = 0');
+
     if ($withTransaction) {
         $db->transStart();
     }
