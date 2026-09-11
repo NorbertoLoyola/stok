@@ -1,0 +1,29 @@
+include:
+    - docker/docker-mysql.yml
+
+services:
+    ospos:
+        build:
+            context: .
+            target: ospos
+        restart: always
+        depends_on:
+            - mysql
+        ports:
+            - "8081:80"
+        networks:
+            - app_net
+        volumes:
+            - uploads:/app/public/uploads
+            - logs:/app/writable/logs
+        environment:
+            - CI_ENVIRONMENT=production
+            - ALLOWED_HOSTNAMES=localhost:8081
+            - FORCE_HTTPS=false
+            - PHP_TIMEZONE=UTC
+            - MYSQL_USERNAME=admin
+            - MYSQL_PASSWORD=pointofsale
+            - MYSQL_DB_NAME=ospos
+            - MYSQL_HOST_NAME=mysql
+            - ENCRYPTION_KEY=f973f163c97d16f89c97080ec297623dab6f8ccb31ac6180d62266a8f4229f90
+            - throttle.key=ff7cecbffd1be3a2d079062ba2cd0d5c21cc145cba26a07f016cf9396573f9fa
