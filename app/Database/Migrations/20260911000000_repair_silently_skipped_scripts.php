@@ -27,6 +27,20 @@ class Migration_Repair_Silently_Skipped_Scripts extends Migration
     {
         helper('migration');
 
+        // These specific tables went through several silently-broken
+        // partial creation/alteration attempts across earlier deploys
+        // (sql_require_primary_key failures, followed by retries against
+        // half-built state) before the fixes above existed, and are now
+        // internally inconsistent in ways later scripts can't cleanly
+        // reconcile (e.g. "Cannot add foreign key constraint" on an index
+        // that should be brand new). This is a fresh install with no real
+        // data yet, so drop and let the scripts below recreate them clean.
+        $this->db->query('SET FOREIGN_KEY_CHECKS = 0');
+        foreach (['attribute_links', 'expense_categories', 'expenses', 'cash_up'] as $table) {
+            $this->db->query('DROP TABLE IF EXISTS `' . $this->db->getPrefix() . $table . '`');
+        }
+        $this->db->query('SET FOREIGN_KEY_CHECKS = 1');
+
         $scripts = [
             '3.1.1_to_3.2.0.sql',
             '3.2.0_to_3.2.1.sql',
