@@ -137,6 +137,11 @@ class Database extends Config
             $config['username'] = !getenv('MYSQL_USERNAME') ? $config['username'] : getenv('MYSQL_USERNAME');
             $config['password'] = !getenv('MYSQL_PASSWORD') ? $config['password'] : getenv('MYSQL_PASSWORD');
             $config['database'] = !getenv('MYSQL_DB_NAME') ? $config['database'] : getenv('MYSQL_DB_NAME');
+            $config['port']     = !getenv('MYSQL_PORT') ? $config['port'] : (int) getenv('MYSQL_PORT');
+
+            if (getenv('MYSQL_SSL') === 'true') {
+                $config['encrypt'] = ['ssl_verify' => false];
+            }
         }
     }
 }
