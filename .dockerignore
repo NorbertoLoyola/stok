@@ -34,12 +34,7 @@ git-svn-diff.py
 !LICENSE
 branding/
 
-# Build configs (not needed at runtime)
-composer.json
-composer.lock
-package.json
-package-lock.json
-gulpfile.js
+# Build configs (not needed at runtime, but required as build stage inputs)
 .env.example
 .dockerignore
 
