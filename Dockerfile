@@ -27,6 +27,7 @@ WORKDIR /app
 COPY --chown=www-data:www-data . /app
 COPY --chown=www-data:www-data --from=vendor /app/vendor /app/vendor
 COPY --chown=www-data:www-data --from=assets /app/public /app/public
+COPY --chown=www-data:www-data --from=assets /app/app/Views /app/app/Views
 RUN chmod 750 /app/writable/logs /app/writable/uploads /app/writable/cache /app/public/uploads /app/public/uploads/item_pics \
     && chmod 640 /app/writable/uploads/importCustomers.csv \
     && ln -s /app/*[^public] /var/www \
