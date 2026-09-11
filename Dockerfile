@@ -32,16 +32,3 @@ RUN chmod 750 /app/writable/logs /app/writable/uploads /app/writable/cache /app/
     && ln -s /app/*[^public] /var/www \
     && rm -rf /var/www/html \
     && ln -nsf /app/public /var/www/html
-
-FROM ospos AS ospos_dev
-
-ARG USERID
-ARG GROUPID
-
-RUN echo "Adding user uid $USERID with gid $GROUPID"
-RUN ( addgroup --gid $GROUPID ospos || true ) && ( adduser --uid $USERID --gid $GROUPID ospos )
-
-RUN yes | pecl install xdebug \
-    && echo "zend_extension=$(find /usr/local/lib/php/extensions/ -name xdebug.so)" > /usr/local/etc/php/conf.d/xdebug.ini \
-    && echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/xdebug.ini \
-    && echo "xdebug.remote_autostart=off" >> /usr/local/etc/php/conf.d/xdebug.ini
