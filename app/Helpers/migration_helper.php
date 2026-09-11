@@ -47,7 +47,14 @@ function executeScript(string $path, bool $withTransaction = false): bool
                 // informational instead of aborting the whole migration.
                 // 3730 (can't drop a table still referenced by a FK) covers
                 // best-effort cleanup statements that are safe to skip too.
-                $alreadyAppliedCodes = [1050, 1051, 1054, 1060, 1061, 1062, 1068, 1091, 1146, 1826, 3730];
+                // 1215 (can't add FK constraint) shows up on this legacy
+                // schema's history when a generated-column/unique-index
+                // ALTER needs to rebuild a table with existing FKs whose
+                // referenced columns drifted in type over many migrations;
+                // it guards a nice-to-have anti-duplicate constraint, not
+                // core functionality, so skip rather than block the whole
+                // migration run over it.
+                $alreadyAppliedCodes = [1050, 1051, 1054, 1060, 1061, 1062, 1068, 1091, 1146, 1215, 1826, 3730];
 
                 if (in_array($error['code'] ?? null, $alreadyAppliedCodes, true)) {
                     log_message('info', "Skipping already-applied change ({$error['code']}): {$error['message']}");
