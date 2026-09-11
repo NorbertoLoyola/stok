@@ -211,7 +211,7 @@ class Giftcard extends Model
         $builder->groupStart();
         $builder->like('first_name', $search);
         $builder->orLike('last_name', $search);
-        $builder->orLike('CONCAT(first_name, " ", last_name)', $search);
+        $builder->orLike('CONCAT(first_name, \' \', last_name)', $search);
         $builder->groupEnd();
         $builder->where('deleted', 0);
         $builder->orderBy('last_name', 'asc');
@@ -266,7 +266,7 @@ class Giftcard extends Model
         $builder->groupStart();
         $builder->like('person.first_name', $search);
         $builder->orLike('person.last_name', $search);
-        $builder->orLike('CONCAT(person.first_name, " ", person.last_name)', $search);
+        $builder->orLike('CONCAT(person.first_name, \' \', person.last_name)', $search);
         $builder->orLike('giftcards.giftcard_number', $search);
         $builder->orLike('giftcards.person_id', $search);
         $builder->groupEnd();

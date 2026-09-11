@@ -32,7 +32,7 @@ class Summary_discounts extends Summary_report
             $builder->select('SUM(sales_items.discount) AS total, MAX(CONCAT(' . $currency_symbol . ', sales_items.discount)) AS discount, count(*) AS count');
             $builder->where('discount_type', FIXED);
         } elseif ($inputs['discount_type'] == PERCENT) {
-            $builder->select('SUM(item_unit_price) * sales_items.discount / 100.0 AS total, MAX(CONCAT(sales_items.discount, "%")) AS discount, count(*) AS count');
+            $builder->select('SUM(item_unit_price) * sales_items.discount / 100.0 AS total, MAX(CONCAT(sales_items.discount, \'%\')) AS discount, count(*) AS count');
             $builder->where('discount_type', PERCENT);
         }
 

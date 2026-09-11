@@ -186,7 +186,7 @@ class Supplier extends Person
         $builder->groupStart();
         $builder->like('first_name', $search);
         $builder->orLike('last_name', $search);
-        $builder->orLike('CONCAT(first_name, " ", last_name)', $search);
+        $builder->orLike('CONCAT(first_name, \' \', last_name)', $search);
         $builder->groupEnd();
         $builder->where('deleted', 0);
         $builder->orderBy('last_name', 'asc');
@@ -271,7 +271,7 @@ class Supplier extends Person
         $builder->orLike('email', $search);
         $builder->orLike('phone_number', $search);
         $builder->orLike('account_number', $search);
-        $builder->orLike('CONCAT(first_name, " ", last_name)', $search);    // TODO: According to PHPStorm, this line down to the return is repeated in Customer.php and Employee.php... perhaps refactoring a method in a library could be helpful?
+        $builder->orLike('CONCAT(first_name, \' \', last_name)', $search);    // TODO: According to PHPStorm, this line down to the return is repeated in Customer.php and Employee.php... perhaps refactoring a method in a library could be helpful?
         $builder->groupEnd();
         $builder->where('deleted', 0);
 

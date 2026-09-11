@@ -140,7 +140,7 @@ class Expense extends Model
             $builder->orLike('expenses.payment_type', $search);
             $builder->orLike('expenses.amount', $search);
             $builder->orLike('expense_categories.category_name', $search);
-            $builder->orLike('CONCAT(employees.first_name, " ", employees.last_name)', $search);
+            $builder->orLike('CONCAT(employees.first_name, \' \', employees.last_name)', $search);
         $builder->groupEnd();
 
         $builder->where('expenses.deleted', $filters['is_deleted']);

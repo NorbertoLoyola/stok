@@ -30,7 +30,7 @@ class Summary_suppliers extends Summary_report
         parent::_select($inputs, $builder);    // TODO: hungarian notation
 
         $builder->select('
-                MAX(CONCAT(supplier_c.company_name, " (", supplier_p.first_name, " ", supplier_p.last_name, ")")) AS supplier,
+                MAX(CONCAT(supplier_c.company_name, \' (\', supplier_p.first_name, \' \', supplier_p.last_name, \')\')) AS supplier,
                 SUM(sales_items.quantity_purchased) AS quantity_purchased
         ');
     }
@@ -55,6 +55,6 @@ class Summary_suppliers extends Summary_report
     protected function _group_order(object &$builder): void    // TODO: hungarian notation
     {
         $builder->groupBy('items.supplier_id');
-        $builder->orderBy('MAX(CONCAT(supplier_c.company_name, " (", supplier_p.first_name, " ", supplier_p.last_name, ")"))');
+        $builder->orderBy('MAX(CONCAT(supplier_c.company_name, \' (\', supplier_p.first_name, \' \', supplier_p.last_name, \')\'))');
     }
 }

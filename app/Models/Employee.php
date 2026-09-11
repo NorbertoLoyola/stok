@@ -257,7 +257,7 @@ class Employee extends Person
         $builder->groupStart();
         $builder->like('first_name', $search);
         $builder->orLike('last_name', $search);
-        $builder->orLike('CONCAT(first_name, " ", last_name)', $search);
+        $builder->orLike('CONCAT(first_name, \' \', last_name)', $search);
         $builder->groupEnd();
 
         if (!$unique) {
@@ -354,7 +354,7 @@ class Employee extends Person
         $builder->orLike('email', $search);
         $builder->orLike('phone_number', $search);
         $builder->orLike('username', $search);
-        $builder->orLike('CONCAT(first_name, " ", last_name)', $search);
+        $builder->orLike('CONCAT(first_name, \' \', last_name)', $search);
         $builder->groupEnd();
         $builder->where('deleted', 0);
 

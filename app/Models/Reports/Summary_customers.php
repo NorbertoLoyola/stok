@@ -31,7 +31,7 @@ class Summary_customers extends Summary_report
         parent::_select($inputs, $builder);    // TODO: Hungarian notation
 
         $builder->select('
-                MAX(CONCAT(customer_p.first_name, " ", customer_p.last_name)) AS customer,
+                MAX(CONCAT(customer_p.first_name, \' \', customer_p.last_name)) AS customer,
                 SUM(sales_items.quantity_purchased) AS quantity_purchased,
                 COUNT(DISTINCT sales.sale_id) AS sales
         ');

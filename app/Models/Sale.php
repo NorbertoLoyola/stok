@@ -65,7 +65,7 @@ class Sale extends Model
                 MAX(sales.quote_number) AS quote_number,
                 MAX(sales.employee_id) AS employee_id,
                 MAX(sales.customer_id) AS customer_id,
-                MAX(CONCAT(customer_p.first_name, " ", customer_p.last_name)) AS customer_name,
+                MAX(CONCAT(customer_p.first_name, \' \', customer_p.last_name)) AS customer_name,
                 MAX(customer_p.first_name) AS first_name,
                 MAX(customer_p.last_name) AS last_name,
                 MAX(customer_p.email) AS email,
@@ -162,7 +162,7 @@ class Sale extends Model
                 'MAX(`' . $db_prefix . 'sales`.`invoice_number`) AS invoice_number',
                 'MAX(`' . $db_prefix . 'sales`.`quote_number`) AS quote_number',
                 'SUM(`sales_items`.`quantity_purchased`) AS items_purchased',
-                'MAX(CONCAT(`customer_p`.`first_name`, " ", `customer_p`.`last_name`)) AS customer_name',
+                'MAX(CONCAT(`customer_p`.`first_name`, \' \', `customer_p`.`last_name`)) AS customer_name',
                 'MAX(`customer`.`company_name`) AS company_name',
                 $sale_subtotal . ' AS subtotal',
                 $tax . ' AS tax',
@@ -236,7 +236,7 @@ class Sale extends Model
                 $builder->groupStart();
                 $builder->like('customer_p.last_name', $search);    // Customer last name
                 $builder->orLike('customer_p.first_name', $search);    // Customer first name
-                $builder->orLike('CONCAT(customer_p.first_name, " ", customer_p.last_name)', $search);    // Customer first and last name
+                $builder->orLike('CONCAT(customer_p.first_name, \' \', customer_p.last_name)', $search);    // Customer first and last name
                 $builder->orLike('customer.company_name', $search);    // Customer company name
                 if (ctype_digit($search)) {
                     $builder->orWhere('sales.sale_id', $search);    // Sale ID
@@ -337,7 +337,7 @@ class Sale extends Model
             $builder->join('people', 'people.person_id = sales.customer_id');
             $builder->like('last_name', $search);
             $builder->orLike('first_name', $search);
-            $builder->orLike('CONCAT(first_name, " ", last_name)', $search);
+            $builder->orLike('CONCAT(first_name, \' \', last_name)', $search);
             $builder->orLike('company_name', $search);
             $builder->orderBy('last_name', 'asc');
 
@@ -1073,8 +1073,11 @@ class Sale extends Model
         }
 
         // Create a temporary table to contain all the sum of taxes per sale item
+        // Some managed MySQL hosts (e.g. Aiven) disable the MEMORY storage
+        // engine entirely, so let the temp table use the connection's
+        // default engine (InnoDB) instead of forcing MEMORY.
         $sql = 'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sales_items_taxes_temp') .
-            ' (INDEX(sale_id), INDEX(item_id)) ENGINE=MEMORY
+            ' (INDEX(sale_id), INDEX(item_id))
             (
                 SELECT sales_items_taxes.sale_id AS sale_id,
                     sales_items_taxes.item_id AS item_id,
@@ -1101,8 +1104,8 @@ class Sale extends Model
                     SUM(CASE WHEN payments.cash_adjustment = 0 THEN payments.payment_amount ELSE 0 END) AS sale_payment_amount,
                     SUM(CASE WHEN payments.cash_adjustment = 1 THEN payments.payment_amount ELSE 0 END) AS sale_cash_adjustment,
                     SUM(payments.cash_refund) AS sale_cash_refund,
-                    GROUP_CONCAT(CONCAT(payments.payment_type, " ", (payments.payment_amount - payments.cash_refund)) SEPARATOR ", ") AS payment_type,
-                    GROUP_CONCAT(NULLIF(payments.reference_code, "") SEPARATOR ", ") AS reference_code
+                    GROUP_CONCAT(CONCAT(payments.payment_type, \' \', (payments.payment_amount - payments.cash_refund)) SEPARATOR \', \') AS payment_type,
+                    GROUP_CONCAT(NULLIF(payments.reference_code, \'\') SEPARATOR \', \') AS reference_code
                 FROM ' . $this->db->prefixTable('sales_payments') . ' AS payments
                 INNER JOIN ' . $this->db->prefixTable('sales') . ' AS sales
                     ON sales.sale_id = payments.sale_id
@@ -1125,14 +1128,14 @@ class Sale extends Model
                     MAX(sales.invoice_number) AS invoice_number,
                     MAX(sales.quote_number) AS quote_number,
                     MAX(sales.customer_id) AS customer_id,
-                    MAX(CONCAT(customer_p.first_name, " ", customer_p.last_name)) AS customer_name,
+                    MAX(CONCAT(customer_p.first_name, \' \', customer_p.last_name)) AS customer_name,
                     MAX(customer_p.first_name) AS customer_first_name,
                     MAX(customer_p.last_name) AS customer_last_name,
                     MAX(customer_p.email) AS customer_email,
                     MAX(customer_p.comments) AS customer_comments,
                     MAX(customer.company_name) AS customer_company_name,
                     MAX(sales.employee_id) AS employee_id,
-                    MAX(CONCAT(employee.first_name, " ", employee.last_name)) AS employee_name,
+                    MAX(CONCAT(employee.first_name, \' \', employee.last_name)) AS employee_name,
                     items.item_id AS item_id,
                     MAX(' . $item->get_item_name() . ') AS name,
                     MAX(items.item_number) AS item_number,
@@ -1424,8 +1427,8 @@ class Sale extends Model
             'SUM(CASE WHEN `payments`.`cash_adjustment` = 0 THEN `payments`.`payment_amount` ELSE 0 END) AS sale_payment_amount',
             'SUM(CASE WHEN `payments`.`cash_adjustment` = 1 THEN `payments`.`payment_amount` ELSE 0 END) AS sale_cash_adjustment',
             'SUM(`payments`.`cash_refund`) AS sale_cash_refund',
-            'GROUP_CONCAT(CONCAT(`payments`.`payment_type`, " ", (`payments`.`payment_amount` - `payments`.`cash_refund`)) SEPARATOR ", ") AS payment_type',
-            'GROUP_CONCAT(NULLIF(`payments`.`reference_code`, "") SEPARATOR ", ") AS reference_code'
+            'GROUP_CONCAT(CONCAT(`payments`.`payment_type`, \' \', (`payments`.`payment_amount` - `payments`.`cash_refund`)) SEPARATOR \', \') AS payment_type',
+            'GROUP_CONCAT(NULLIF(`payments`.`reference_code`, \'\') SEPARATOR \', \') AS reference_code'
         ]);
         $builder->join('sales', 'sales.sale_id = payments.sale_id', 'inner');
         $builder->where($where);
@@ -1465,7 +1468,7 @@ class Sale extends Model
 
         $this->db->query('CREATE TEMPORARY TABLE IF NOT EXISTS '
             . $this->db->prefixTable('sales_items_taxes_temp')
-            . ' (INDEX(sale_id), INDEX(item_id)) ENGINE=MEMORY AS (' . $sub_query . ')');
+            . ' (INDEX(sale_id), INDEX(item_id)) AS (' . $sub_query . ')');
     }
 
     /**
@@ -1487,7 +1490,7 @@ class Sale extends Model
                 // Customer first name
                 $builder->orLike('customer_p.first_name', $search);
                 // Customer first and last name
-                $builder->orLike('CONCAT(customer_p.first_name, " ", customer_p.last_name)', $search);
+                $builder->orLike('CONCAT(customer_p.first_name, \' \', customer_p.last_name)', $search);
                 // Customer company name
                 $builder->orLike('customer.company_name', $search);
                 if (ctype_digit($search)) {

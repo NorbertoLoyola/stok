@@ -143,8 +143,11 @@ class Customer extends Person
         $builder->groupBy('sale_id');
         $selectQuery = $builder->getCompiledSelect();
 
+        // Some managed MySQL hosts (e.g. Aiven) disable the MEMORY storage
+        // engine entirely, so let the temp table use the connection's
+        // default engine (InnoDB) instead of forcing MEMORY.
         $sql = 'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sales_items_temp');
-        $sql .= ' (INDEX(sale_id)) ENGINE=MEMORY (' . $selectQuery . ')';
+        $sql .= ' (INDEX(sale_id)) (' . $selectQuery . ')';
         $this->db->query($sql);
 
         // Get data
@@ -339,7 +342,7 @@ class Customer extends Person
         $builder->groupStart();
         $builder->like('first_name', $search);
         $builder->orLike('last_name', $search);
-        $builder->orLike('CONCAT(first_name, " ", last_name)', $search);
+        $builder->orLike('CONCAT(first_name, \' \', last_name)', $search);
 
         if ($unique) {
             $builder->orLike('email', $search);
@@ -442,7 +445,7 @@ class Customer extends Person
         $builder->orLike('phone_number', $search);
         $builder->orLike('account_number', $search);
         $builder->orLike('company_name', $search);
-        $builder->orLike('CONCAT(first_name, " ", last_name)', $search);    // TODO: Duplicated code.
+        $builder->orLike('CONCAT(first_name, \' \', last_name)', $search);    // TODO: Duplicated code.
         $builder->groupEnd();
         $builder->where('deleted', 0);
 

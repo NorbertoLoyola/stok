@@ -31,7 +31,7 @@ class Summary_employees extends Summary_report
         parent::_select($inputs, $builder);
 
         $builder->select('
-                MAX(CONCAT(employee_p.first_name, " ", employee_p.last_name)) AS employee,
+                MAX(CONCAT(employee_p.first_name, \' \', employee_p.last_name)) AS employee,
                 SUM(sales_items.quantity_purchased) AS quantity_purchased,
                 COUNT(DISTINCT sales.sale_id) AS sales
         ');

@@ -179,7 +179,7 @@ class Person extends Model
         // $builder->groupStart();
         // $builder->like('first_name', $search);
         // $builder->orLike('last_name', $search);
-        // $builder->orLike('CONCAT(first_name, " ", last_name)', $search);
+        // $builder->orLike('CONCAT(first_name, \' \', last_name)', $search);
         // $builder->orLike('email', $search);
         // $builder->orLike('phone_number', $search);
         // $builder->groupEnd();

@@ -130,8 +130,8 @@ class Cashup extends Model
         $builder->orLike('close_employees.first_name', $search);
         $builder->orLike('close_employees.last_name', $search);
         $builder->orLike('cash_up.closed_amount_total', $search);
-        $builder->orLike('CONCAT(open_employees.first_name, " ", open_employees.last_name)', $search);
-        $builder->orLike('CONCAT(close_employees.first_name, " ", close_employees.last_name)', $search);
+        $builder->orLike('CONCAT(open_employees.first_name, \' \', open_employees.last_name)', $search);
+        $builder->orLike('CONCAT(close_employees.first_name, \' \', close_employees.last_name)', $search);
         $builder->groupEnd();
 
         $builder->where('cash_up.deleted', $filters['is_deleted']);
