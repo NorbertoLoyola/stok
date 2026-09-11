@@ -17,16 +17,24 @@ class MigrationOptimizationIndices extends Migration
         helper('migration');
         $forge = Database::forge();
 
-        if (!indexExists('attribute_links', 'attribute_links_uq2')) {
-            $columns = [
-                'item_id',
-                'receiving_id',
-                'sale_id',
-                'definition_id',
-                'attribute_id'
-            ];
-            $forge->addKey($columns, false, true, 'attribute_links_uq2');
-            $forge->processIndexes('attribute_links');
+        // attribute_links may not exist yet on a database where
+        // 20181015100000_attributes.php's script silently failed to create
+        // it (see 20260911000000_repair_silently_skipped_scripts.php),
+        // which recreates it later in the run — skip gracefully here.
+        try {
+            if (!indexExists('attribute_links', 'attribute_links_uq2')) {
+                $columns = [
+                    'item_id',
+                    'receiving_id',
+                    'sale_id',
+                    'definition_id',
+                    'attribute_id'
+                ];
+                $forge->addKey($columns, false, true, 'attribute_links_uq2');
+                $forge->processIndexes('attribute_links');
+            }
+        } catch (\Throwable $e) {
+            fwrite(STDERR, '[MigrationOptimizationIndices] attribute_links index skipped: ' . $e->getMessage() . PHP_EOL);
         }
 
         if (!indexExists('inventory', 'trans_items_trans_date')) {
