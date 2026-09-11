@@ -1,6 +1,7 @@
 <?php
 
 use Config\Database;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 
 /**
  * Executes a SQL migration script.
@@ -72,6 +73,15 @@ function executeScript(string $path, bool $withTransaction = false): bool
 
     if ($withTransaction) {
         $db->transComplete();
+    }
+
+    // Most callers of this helper discard the return value, which used to
+    // mean a failed script was silently marked as a "completed" migration
+    // (CodeIgniter never retries an applied migration). Throw instead so a
+    // real failure always aborts the migration run and can be fixed and
+    // retried, regardless of whether the caller checks the return value.
+    if (!$success) {
+        throw new DatabaseException("Migration script " . basename($path) . ' failed. Check logs for details.');
     }
 
     return $success;

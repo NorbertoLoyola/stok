@@ -13,8 +13,17 @@ class fix_duplicate_attributes extends Migration
      */
     public function up(): void
     {
-        $rows_to_keep = $this->get_all_duplicate_attributes();
-        $this->remove_duplicate_attributes($rows_to_keep);
+        try {
+            $rows_to_keep = $this->get_all_duplicate_attributes();
+            $this->remove_duplicate_attributes($rows_to_keep);
+        } catch (\TypeError $e) {
+            // get_all_duplicate_attributes() requires attribute_links to
+            // already exist. On a database where that table wasn't created
+            // yet (see 20170501140000_ensure_sessions_table.php for the
+            // same class of issue), skip the cleanup instead of crashing
+            // the whole migration run — there's nothing to deduplicate yet.
+            fwrite(STDERR, '[fix_duplicate_attributes] skipped: ' . $e->getMessage() . PHP_EOL);
+        }
 
         helper('migration');
 
