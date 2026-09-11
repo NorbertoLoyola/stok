@@ -231,7 +231,16 @@ function checkEncryption(): bool
  */
 function checkThrottleEncryption(): string
 {
+    // Some hosts (e.g. Render, under Apache/mod_php) don't reliably expose
+    // process environment variables whose name contains a dot to PHP's
+    // env()/getenv() for web requests, even though the same value is
+    // visible fine to CLI commands (spark migrate, etc). Accept a
+    // dot-free alias so a host-level "throttle.key" that isn't making it
+    // through still works via THROTTLE_KEY.
     $key = (string) env('throttle.key', '');
+    if ($key === '') {
+        $key = (string) env('THROTTLE_KEY', '');
+    }
 
     if (!empty($key)) {
         return $key;
