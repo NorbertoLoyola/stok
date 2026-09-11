@@ -45,7 +45,9 @@ function executeScript(string $path, bool $withTransaction = false): bool
                 // regardless. On retry, whatever already applied trips one
                 // of these "already done" MySQL error codes; treat those as
                 // informational instead of aborting the whole migration.
-                $alreadyAppliedCodes = [1050, 1051, 1054, 1060, 1061, 1062, 1068, 1091, 1146, 1826];
+                // 3730 (can't drop a table still referenced by a FK) covers
+                // best-effort cleanup statements that are safe to skip too.
+                $alreadyAppliedCodes = [1050, 1051, 1054, 1060, 1061, 1062, 1068, 1091, 1146, 1826, 3730];
 
                 if (in_array($error['code'] ?? null, $alreadyAppliedCodes, true)) {
                     log_message('info', "Skipping already-applied change ({$error['code']}): {$error['message']}");
