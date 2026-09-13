@@ -647,8 +647,8 @@
                         window.applyItemAttribute('Marca', data.brand);
                     }
 
-                    if (data.pic_url) {
-                        fetch(data.pic_url)
+                    if (data.pic_data_uri) {
+                        fetch(data.pic_data_uri)
                             .then(function(res) { return res.blob(); })
                             .then(function(blob) {
                                 const file = new File([blob], 'foto_producto.jpg', { type: blob.type || 'image/jpeg' });

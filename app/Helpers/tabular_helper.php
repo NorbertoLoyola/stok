@@ -462,18 +462,12 @@ function get_item_data_row(object $item): array
 
     $controller = get_controller();
 
+    // Photos live in the item_pics table (BLOB), not on disk - the free
+    // hosting this app runs on has no persistent filesystem. Both routes
+    // below just look the picture up by item_id.
     $image = null;
     if (!empty($item->pic_filename)) {
-        $ext = pathinfo($item->pic_filename, PATHINFO_EXTENSION);
-
-        $images = $ext == ''
-            ? glob("./uploads/item_pics/$item->pic_filename.*")
-            : glob("./uploads/item_pics/$item->pic_filename");
-
-        if (sizeof($images) > 0) {
-            $image_path = ltrim($images[0], './');
-            $image .= '<a class="rollover" href="' . base_url(implode('/', array_map('rawurlencode', explode('/', $image_path)))) . '"><img alt="Image thumbnail" src="' . site_url('items/PicThumb/' . rawurlencode(pathinfo($images[0], PATHINFO_BASENAME))) . '"></a>';
-        }
+        $image = '<a class="rollover" href="' . site_url('items/picFull/' . $item->item_id) . '"><img alt="Image thumbnail" src="' . site_url('items/PicThumb/' . $item->item_id) . '"></a>';
     }
 
     if ($config['multi_pack_enabled']) {

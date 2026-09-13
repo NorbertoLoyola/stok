@@ -8,6 +8,7 @@ use App\Models\Attribute;
 use App\Models\Inventory;
 use App\Models\Item;
 use App\Models\Item_kit;
+use App\Models\Item_pic;
 use App\Models\Item_quantity;
 use App\Models\Item_taxes;
 use App\Models\Stock_location;
@@ -36,6 +37,7 @@ class Items extends Secure_Controller
     private Inventory $inventory;
     private Item $item;
     private Item_kit $item_kit;
+    private Item_pic $item_pic;
     private Item_quantity $item_quantity;
     private Item_taxes $item_taxes;
     private Stock_location $stock_location;
@@ -61,6 +63,7 @@ class Items extends Secure_Controller
         $this->inventory = model(Inventory::class);
         $this->item = model(Item::class);
         $this->item_kit = model(Item_kit::class);
+        $this->item_pic = model(Item_pic::class);
         $this->item_quantity = model(Item_quantity::class);
         $this->item_taxes = model(Item_taxes::class);
         $this->stock_location = model(Stock_location::class);
@@ -141,60 +144,95 @@ class Items extends Secure_Controller
 
         foreach ($items->getResult() as $item) {
             $data_rows[] = get_item_data_row($item);
-
-            if ($item->pic_filename !== null) {
-                $this->update_pic_filename($item);
-            }
         }
 
         return $this->response->setJSON(['total' => $total_rows, 'rows' => $data_rows]);
     }
 
     /**
-     * AJAX function. Processes thumbnail of image. Called via tabular_helper
-     * @param string $pic_filename
-     * @return ResponseInterface
+     * AJAX function. Serves an item's small table-list thumbnail from the
+     * database, generating and caching it on first request. Called via
+     * tabular_helper. Photos live in the item_pics table, not on disk - the
+     * free hosting this app runs on has no persistent filesystem.
      * @noinspection PhpUnused
      */
-    public function getPicThumb(string $pic_filename): ResponseInterface
+    public function getPicThumb(int $item_id): ResponseInterface
     {
-        helper('file');
+        $pic = $this->item_pic->get_picture($item_id);
 
-        // Security: Sanitize filename to prevent path traversal
-        // Use basename() to strip directory components and prevent '../' attacks
-        $pic_filename = basename(rawurldecode($pic_filename));
-        $file_extension = strtolower(pathinfo($pic_filename, PATHINFO_EXTENSION));
-
-        // Validate file extension against system-configured allowed image types
-        // Handle both legacy pipe-separated and current comma-separated formats
-        // Fallback to types that GD library can process for thumbnail generation
-        $allowed_types = $this->config['image_allowed_types'] ?? 'jpg,jpeg,gif,png,webp,bmp,tif,tiff';
-        $allowed_extensions = strpos($allowed_types, '|') !== false
-            ? explode('|', $allowed_types)
-            : explode(',', $allowed_types);
-
-        if (!in_array($file_extension, $allowed_extensions, true)) {
-            return $this->response->setStatusCode(400)->setBody('Invalid file type');
+        if ($pic === null) {
+            return $this->response;
         }
 
-        $images = glob("./uploads/item_pics/$pic_filename");
-        $base_path = './uploads/item_pics/' . pathinfo($pic_filename, PATHINFO_FILENAME);
+        $thumbData = $pic['thumb_data'];
 
-        if (sizeof($images) > 0) {
-            $image_path = $images[0];
-            $thumb_path = $base_path . "_thumb.$file_extension";
+        if (empty($thumbData)) {
+            $thumbData = $this->generateThumbBytes($pic['data'], $pic['mime_type']);
 
-            if (sizeof($images) < 2 && !file_exists($thumb_path)) {
-                $this->image->withFile($image_path)
-                    ->resize(52, 32, true, 'height')
-                    ->save($thumb_path);
+            if ($thumbData !== null) {
+                $this->item_pic->save_thumb($item_id, $thumbData);
+            } else {
+                $thumbData = $pic['data'];
             }
-
-            $this->response->setContentType(mime_content_type($thumb_path));
-            $this->response->setBody(file_get_contents($thumb_path));
         }
 
-        return $this->response;
+        $this->response->setContentType($pic['mime_type']);
+
+        return $this->response->setBody($thumbData);
+    }
+
+    /**
+     * AJAX function. Serves an item's full-size photo from the database
+     * (used for the "rollover" preview link and the edit form's Avatar
+     * preview).
+     * @noinspection PhpUnused
+     */
+    public function getPicFull(int $item_id): ResponseInterface
+    {
+        $pic = $this->item_pic->get_picture($item_id);
+
+        if ($pic === null) {
+            return $this->response->setStatusCode(404);
+        }
+
+        $this->response->setContentType($pic['mime_type']);
+
+        return $this->response->setBody($pic['data']);
+    }
+
+    /**
+     * Resizes an in-memory image for the table-list thumbnail. The Image
+     * service only operates on file paths, so this round-trips the bytes
+     * through short-lived temp files. Returns null (never throws) on any
+     * failure - a missing thumbnail falls back to the full image.
+     */
+    private function generateThumbBytes(string $imageData, string $mimeType): ?string
+    {
+        $extension = match ($mimeType) {
+            'image/png'  => 'png',
+            'image/gif'  => 'gif',
+            'image/webp' => 'webp',
+            default      => 'jpg',
+        };
+
+        $sourcePath = tempnam(sys_get_temp_dir(), 'pic') . '.' . $extension;
+        $thumbPath = tempnam(sys_get_temp_dir(), 'thumb') . '.' . $extension;
+
+        try {
+            file_put_contents($sourcePath, $imageData);
+            $this->image->withFile($sourcePath)
+                ->resize(52, 32, true, 'height')
+                ->save($thumbPath);
+
+            return file_get_contents($thumbPath) ?: null;
+        } catch (\Throwable $e) {
+            log_message('error', 'generateThumbBytes: ' . $e->getMessage());
+
+            return null;
+        } finally {
+            @unlink($sourcePath);
+            @unlink($thumbPath);
+        }
     }
 
     /**
@@ -212,11 +250,17 @@ class Items extends Secure_Controller
             return $this->response->setJSON(['found' => false]);
         }
 
+        $picDataUri = null;
+
+        if ($lookup['pic_data']) {
+            $picDataUri = 'data:' . $lookup['pic_mime'] . ';base64,' . base64_encode($lookup['pic_data']);
+        }
+
         return $this->response->setJSON([
-            'found'   => true,
-            'name'    => $lookup['name'],
-            'brand'   => $lookup['brand'],
-            'pic_url' => $lookup['pic_filename'] ? base_url('uploads/item_pics/' . $lookup['pic_filename']) : null
+            'found'        => true,
+            'name'         => $lookup['name'],
+            'brand'        => $lookup['brand'],
+            'pic_data_uri' => $picDataUri
         ]);
     }
 
@@ -288,8 +332,8 @@ class Items extends Secure_Controller
                 'hsn_code'              => ''
             ];
 
-            if ($lookup['pic_filename']) {
-                $itemData['pic_filename'] = $lookup['pic_filename'];
+            if ($lookup['pic_data']) {
+                $itemData['pic_filename'] = 'off_' . $code . '.jpg';
             }
 
             if ($this->item->save_value($itemData, NEW_ENTRY)) {
@@ -298,6 +342,10 @@ class Items extends Secure_Controller
 
                 if ($lookup['brand'] !== '') {
                     $this->saveBarcodeLookupBrand($newItemId, $lookup['brand']);
+                }
+
+                if ($lookup['pic_data']) {
+                    $this->item_pic->save_picture($newItemId, $lookup['pic_mime'], $lookup['pic_data']);
                 }
 
                 $this->seedZeroInventory($newItemId);
@@ -349,21 +397,23 @@ class Items extends Secure_Controller
         $brands = trim($product['brands'] ?? '');
         $brand = $brands === '' ? '' : trim(explode(',', $brands)[0]);
         $imageUrl = $product['image_front_url'] ?? ($product['image_url'] ?? null);
+        $image = $imageUrl ? $this->downloadBarcodeLookupImage($imageUrl) : null;
 
         return [
-            'name'         => $name,
-            'brand'        => $brand,
-            'pic_filename' => $imageUrl ? $this->downloadBarcodeLookupImage($imageUrl, $code) : null
+            'name'     => $name,
+            'brand'    => $brand,
+            'pic_mime' => $image['mime'] ?? null,
+            'pic_data' => $image['data'] ?? null
         ];
     }
 
     /**
-     * Downloads a looked-up product photo into uploads/item_pics/ and
-     * returns its filename (not a URL - callers store it as pic_filename or
-     * build a same-origin URL from it themselves). Returns null on any
-     * failure - a missing photo never blocks filling in name/brand.
+     * Downloads a looked-up product photo into memory - it's handed back to
+     * the caller to store in the item_pics table, never written to disk
+     * (uploads/item_pics/ isn't persistent on this host). Returns null on
+     * any failure - a missing photo never blocks filling in name/brand.
      */
-    private function downloadBarcodeLookupImage(string $imageUrl, string $code): ?string
+    private function downloadBarcodeLookupImage(string $imageUrl): ?array
     {
         try {
             $client = Services::curlrequest();
@@ -373,10 +423,9 @@ class Items extends Secure_Controller
                 return null;
             }
 
-            $filename = 'lookup_' . preg_replace('/[^0-9]/', '', $code) . '.jpg';
-            file_put_contents(FCPATH . 'uploads/item_pics/' . $filename, $response->getBody());
+            $mime = $response->getHeaderLine('content-type') ?: 'image/jpeg';
 
-            return $filename;
+            return ['mime' => trim(explode(';', $mime)[0]), 'data' => $response->getBody()];
         } catch (\Throwable $e) {
             log_message('error', 'lookupBarcodeData: image download failed: ' . $e->getMessage());
 
@@ -631,17 +680,7 @@ class Items extends Secure_Controller
         }
 
         $data['logo_exists'] = $item_info->pic_filename !== null;
-        if ($item_info->pic_filename != null) {
-            $file_extension = pathinfo($item_info->pic_filename, PATHINFO_EXTENSION);
-            if (empty($file_extension)) {
-                $images = glob("./uploads/item_pics/$item_info->pic_filename.*");
-            } else {
-                $images = glob("./uploads/item_pics/$item_info->pic_filename");
-            }
-            $data['image_path']    = sizeof($images) > 0 ? base_url(implode('/', array_map('rawurlencode', explode('/', ltrim($images[0], './'))))) : '';
-        } else {
-            $data['image_path']    = '';
-        }
+        $data['image_path'] = $data['logo_exists'] ? site_url("items/picFull/$item_info->item_id") : '';
 
         $stock_locations = $this->stock_location->get_undeleted_all()->getResultArray();
 
@@ -1065,6 +1104,10 @@ class Items extends Secure_Controller
                 }
             }
             $success = $success && $this->saveItemAttributes($itemId);
+
+            if ($success && !empty($uploadData['data'])) {
+                $success = $this->item_pic->save_picture($itemId, $uploadData['mime_type'], $uploadData['data']);
+            }
         }
 
         // Check all success conditions before committing
@@ -1115,17 +1158,19 @@ class Items extends Secure_Controller
         $filename = $file->getClientName();
         $info = pathinfo($filename);
 
-        // Sanitize filename to remove problematic characters like spaces
+        // Sanitize filename to remove problematic characters like spaces -
+        // kept only as a display name now; the actual bytes are stored in
+        // the item_pics table (uploads/item_pics/ isn't persistent on this
+        // host).
         $sanitized_name = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $info['filename']);
 
-        $file_info = [
+        return [
             'orig_name' => $filename,
             'raw_name'  => $sanitized_name,
-            'file_ext'  => $file->guessExtension()
+            'file_ext'  => $file->guessExtension(),
+            'mime_type' => $file->getClientMimeType(),
+            'data'      => file_get_contents($file->getRealPath())
         ];
-
-        $file->move(FCPATH . 'uploads/item_pics/', $file_info['raw_name'] . '.' . $file_info['file_ext'], true);
-        return ($file_info);
     }
 
 
@@ -1167,6 +1212,7 @@ class Items extends Secure_Controller
     {
         $item_data = ['pic_filename' => null];
         $result = $this->item->save_value($item_data, $item_id);
+        $this->item_pic->delete_picture((int)$item_id);
 
         return $this->response->setJSON(['success' => $result]);
     }
@@ -1659,29 +1705,6 @@ class Items extends Secure_Controller
         }
 
         return true;
-    }
-
-    /**
-     * Guess whether file extension is not in the table field, if it isn't, then it's an old-format (formerly pic_id) field, so we guess the right filename and update the table
-     *
-     * @param $item object item to update
-     */
-    private function update_pic_filename(object $item): void
-    {
-        $filename = pathinfo($item->pic_filename, PATHINFO_FILENAME);
-
-        // If the field is empty there's nothing to check
-        if (!empty($filename)) {
-            $ext = pathinfo($item->pic_filename, PATHINFO_EXTENSION);
-            if (empty($ext)) {
-                $images = glob(FCPATH . "uploads/item_pics/$item->pic_filename.*");
-                if (sizeof($images) > 0) {
-                    $new_pic_filename = pathinfo($images[0], PATHINFO_BASENAME);
-                    $item_data = ['pic_filename' => $new_pic_filename];
-                    $this->item->save_value($item_data, $item->item_id);
-                }
-            }
-        }
     }
 
     /**
