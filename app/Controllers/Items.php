@@ -185,8 +185,7 @@ class Items extends Secure_Controller
             $thumb_path = $base_path . "_thumb.$file_extension";
 
             if (sizeof($images) < 2 && !file_exists($thumb_path)) {
-                $image = Services::image('gd2');
-                $image->withFile($image_path)
+                $this->image->withFile($image_path)
                     ->resize(52, 32, true, 'height')
                     ->save($thumb_path);
             }
