@@ -402,7 +402,7 @@ class Sale extends Model
 
         $builder = $this->db->table('sales');
         $builder->select('COUNT( 1 ) AS number_year');
-        $builder->where('DATE_FORMAT(sale_time, "%Y" ) = ', $year);
+        $builder->where('DATE_FORMAT(sale_time, \'%Y\' ) = ', $year);
         $builder->where("$field IS NOT NULL");
         $result = $builder->get()->getRowArray();
 

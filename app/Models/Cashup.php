@@ -137,7 +137,7 @@ class Cashup extends Model
         $builder->where('cash_up.deleted', $filters['is_deleted']);
 
         if (empty($config['date_or_time_format'])) {    // TODO: convert this to ternary notation.
-            $builder->where('DATE_FORMAT(cash_up.open_date, "%Y-%m-%d") BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date']));
+            $builder->where('DATE_FORMAT(cash_up.open_date, \'%Y-%m-%d\') BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date']));
         } else {
             $builder->where('cash_up.open_date BETWEEN ' . $this->db->escape(rawurldecode($filters['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($filters['end_date'])));
         }

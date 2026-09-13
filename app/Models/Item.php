@@ -215,7 +215,7 @@ class Item extends Model
         }
 
         $where = empty($config['date_or_time_format'])
-            ? 'DATE_FORMAT(trans_date, "%Y-%m-%d") BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date'])
+            ? 'DATE_FORMAT(trans_date, \'%Y-%m-%d\') BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date'])
             : 'trans_date BETWEEN ' . $this->db->escape(rawurldecode($filters['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($filters['end_date']));
         $builder->where($where);
 

@@ -146,7 +146,7 @@ class Expense extends Model
         $builder->where('expenses.deleted', $filters['is_deleted']);
 
         if (empty($config['date_or_time_format'])) {
-            $builder->where('DATE_FORMAT(expenses.date, "%Y-%m-%d") BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date']));
+            $builder->where('DATE_FORMAT(expenses.date, \'%Y-%m-%d\') BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date']));
         } else {
             $builder->where('expenses.date BETWEEN ' . $this->db->escape(rawurldecode($filters['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($filters['end_date'])));
         }
@@ -308,7 +308,7 @@ class Expense extends Model
         $builder->where('deleted', $filters['is_deleted']);
 
         if (empty($config['date_or_time_format'])) {
-            $builder->where('DATE_FORMAT(date, "%Y-%m-%d") BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date']));
+            $builder->where('DATE_FORMAT(date, \'%Y-%m-%d\') BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date']));
         } else {
             $builder->where('date BETWEEN ' . $this->db->escape(rawurldecode($filters['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($filters['end_date'])));
         }
