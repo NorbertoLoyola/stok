@@ -16,6 +16,10 @@ LABEL maintainer="jekkos"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libicu-dev \
     libgd-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libwebp-dev \
+    && docker-php-ext-configure gd --with-jpeg --with-webp \
     && docker-php-ext-install mysqli bcmath intl gd \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
