@@ -295,10 +295,13 @@ class Items extends Secure_Controller
 
             if ($this->item->save_value($itemData, NEW_ENTRY)) {
                 $created++;
+                $newItemId = (int)$itemData['item_id'];
 
                 if ($lookup['brand'] !== '') {
-                    $this->saveBarcodeLookupBrand((int)$itemData['item_id'], $lookup['brand']);
+                    $this->saveBarcodeLookupBrand($newItemId, $lookup['brand']);
                 }
+
+                $this->seedZeroInventory($newItemId);
             } else {
                 $skipped++;
             }
@@ -379,6 +382,37 @@ class Items extends Secure_Controller
             log_message('error', 'lookupBarcodeData: image download failed: ' . $e->getMessage());
 
             return null;
+        }
+    }
+
+    /**
+     * A freshly-imported item needs at least one inventory row to show up
+     * anywhere in the app: Item::search()'s join against `inventory` is an
+     * INNER JOIN, so an item with zero transactions is invisible even with
+     * the "Eliminado" filter on. Mirrors what postSave() does for a
+     * brand-new item, seeded at zero for every stock location.
+     */
+    private function seedZeroInventory(int $itemId): void
+    {
+        $employeeId = $this->employee->get_logged_in_employee_info()->person_id;
+        $stockLocations = $this->stock_location->get_undeleted_all()->getResultArray();
+
+        foreach ($stockLocations as $location) {
+            $locationDetail = [
+                'item_id'     => $itemId,
+                'location_id' => $location['location_id'],
+                'quantity'    => 0
+            ];
+            $this->item_quantity->save_value($locationDetail, $itemId, $location['location_id']);
+
+            $this->inventory->insert([
+                'trans_date'      => date('Y-m-d H:i:s'),
+                'trans_items'     => $itemId,
+                'trans_user'      => $employeeId,
+                'trans_location'  => $location['location_id'],
+                'trans_comment'   => lang('Items.manually_editing_of_quantity'),
+                'trans_inventory' => 0
+            ], false);
         }
     }
 
