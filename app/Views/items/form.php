@@ -657,6 +657,13 @@
                                 const input = document.querySelector('input[name="items_image"]');
                                 input.files = dataTransfer.files;
                                 $(input).trigger('change');
+
+                                // The fileinput widget's own preview doesn't
+                                // always pick up a programmatically-set file,
+                                // so show it ourselves too.
+                                const $container = $(input).closest('.fileinput');
+                                $container.removeClass('fileinput-new').addClass('fileinput-exists');
+                                $container.find('.fileinput-preview img').attr('src', URL.createObjectURL(blob));
                             });
                     }
 
