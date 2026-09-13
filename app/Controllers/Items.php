@@ -199,6 +199,82 @@ class Items extends Secure_Controller
     }
 
     /**
+     * AJAX function. Looks up a barcode against Open Food Facts and returns
+     * name/brand/photo so the "New Item" form can autocomplete them. Used by
+     * the "Buscar por código" button - never blocks manual entry, so any
+     * failure (network, not found, malformed code) just returns found=false.
+     * @noinspection PhpUnused
+     */
+    public function getLookupBarcode(string $code = ''): ResponseInterface
+    {
+        $code = trim($code);
+
+        if ($code === '' || !ctype_digit($code) || strlen($code) > 14) {
+            return $this->response->setJSON(['found' => false]);
+        }
+
+        try {
+            $client = Services::curlrequest();
+            $response = $client->get("https://world.openfoodfacts.org/api/v2/product/$code.json", [
+                'query'       => ['fields' => 'product_name,brands,image_front_url,image_url,status'],
+                'headers'     => ['User-Agent' => 'stok-ospos/1.0'],
+                'timeout'     => 6,
+                'http_errors' => false
+            ]);
+
+            $data = json_decode($response->getBody(), true);
+        } catch (\Throwable $e) {
+            log_message('error', 'getLookupBarcode: Open Food Facts request failed: ' . $e->getMessage());
+
+            return $this->response->setJSON(['found' => false]);
+        }
+
+        if (empty($data['status']) || empty($data['product']['product_name'])) {
+            return $this->response->setJSON(['found' => false]);
+        }
+
+        $product = $data['product'];
+        $name = trim($product['product_name']);
+        $brands = trim($product['brands'] ?? '');
+        $brand = $brands === '' ? '' : trim(explode(',', $brands)[0]);
+        $imageUrl = $product['image_front_url'] ?? ($product['image_url'] ?? null);
+
+        return $this->response->setJSON([
+            'found'   => true,
+            'name'    => $name,
+            'brand'   => $brand,
+            'pic_url' => $imageUrl ? $this->downloadBarcodeLookupImage($imageUrl, $code) : null
+        ]);
+    }
+
+    /**
+     * Downloads a looked-up product photo into uploads/item_pics/ so the
+     * browser can fetch it same-origin (avoids relying on the third party's
+     * CORS policy) and attach it to the normal file input. Returns null on
+     * any failure - a missing photo never blocks filling in name/brand.
+     */
+    private function downloadBarcodeLookupImage(string $imageUrl, string $code): ?string
+    {
+        try {
+            $client = Services::curlrequest();
+            $response = $client->get($imageUrl, ['timeout' => 6, 'http_errors' => false]);
+
+            if ($response->getStatusCode() !== 200) {
+                return null;
+            }
+
+            $filename = 'lookup_' . preg_replace('/[^0-9]/', '', $code) . '.jpg';
+            file_put_contents(FCPATH . 'uploads/item_pics/' . $filename, $response->getBody());
+
+            return base_url('uploads/item_pics/' . $filename);
+        } catch (\Throwable $e) {
+            log_message('error', 'getLookupBarcode: image download failed: ' . $e->getMessage());
+
+            return null;
+        }
+    }
+
+    /**
      * Gives search suggestions based on what is being searched for
      * @return ResponseInterface
      * @noinspection PhpUnused

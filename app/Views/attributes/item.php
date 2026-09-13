@@ -151,10 +151,13 @@
             return result;
         };
 
-        const refresh = function() {
+        const refresh = function(overrides) {
             const definition_id = $("#definition_name option:selected").val();
             let attribute_values = definition_values();
             attribute_values[definition_id] = '';
+            if (overrides) {
+                $.extend(attribute_values, overrides);
+            }
             $('#attributes').load('<?= "items/attributes/$item_id" ?>', {
                 'definition_ids': JSON.stringify(attribute_values)
             }, enable_delete);
@@ -163,5 +166,32 @@
         $('#definition_name').change(function() {
             refresh();
         });
+
+        // Lets other parts of the form (e.g. the barcode lookup button) fill
+        // an attribute by its definition name without the user having to
+        // add it from the dropdown first.
+        window.applyItemAttribute = function(definitionName, value) {
+            const $existingRow = $('label').filter(function() {
+                return $.trim($(this).text()) === definitionName;
+            }).closest('.form-group').find("[name*='attribute_links']");
+
+            if ($existingRow.length) {
+                $existingRow.val(value);
+                return;
+            }
+
+            const $option = $('#definition_name option').filter(function() {
+                return $.trim($(this).text()) === definitionName;
+            });
+
+            if (!$option.length) {
+                return;
+            }
+
+            $('#definition_name').val($option.val());
+            const overrides = {};
+            overrides[$option.val()] = value;
+            refresh(overrides);
+        };
     })();
 </script>

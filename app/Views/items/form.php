@@ -42,7 +42,11 @@
                         'class' => 'form-control input-sm',
                         'value' => $item_info->item_number
                     ]) ?>
+                    <span class="input-group-btn">
+                        <button type="button" id="lookup_barcode_btn" class="btn btn-default btn-sm"><?= lang('Items.lookup_barcode') ?></button>
+                    </span>
                 </div>
+                <span id="lookup_barcode_status" class="help-block" style="display:none;"></span>
             </div>
         </div>
 
@@ -617,6 +621,51 @@
                 }
             }, form_support.error))
         };
+
+        $('#lookup_barcode_btn').click(function() {
+            const code = $.trim($('#item_number').val());
+            const $status = $('#lookup_barcode_status');
+
+            if (!code) {
+                return;
+            }
+
+            $status.show().removeClass('text-danger text-success').text("<?= lang('Items.lookup_barcode_searching') ?>");
+
+            $.getJSON('<?= site_url('items/lookupBarcode') ?>/' + encodeURIComponent(code))
+                .done(function(data) {
+                    if (!data.found) {
+                        $status.addClass('text-danger').text("<?= lang('Items.lookup_barcode_not_found') ?>");
+                        return;
+                    }
+
+                    if (!$('#name').val()) {
+                        $('#name').val(data.name);
+                    }
+
+                    if (data.brand && window.applyItemAttribute) {
+                        window.applyItemAttribute('Marca', data.brand);
+                    }
+
+                    if (data.pic_url) {
+                        fetch(data.pic_url)
+                            .then(function(res) { return res.blob(); })
+                            .then(function(blob) {
+                                const file = new File([blob], 'foto_producto.jpg', { type: blob.type || 'image/jpeg' });
+                                const dataTransfer = new DataTransfer();
+                                dataTransfer.items.add(file);
+                                const input = document.querySelector('input[name="items_image"]');
+                                input.files = dataTransfer.files;
+                                $(input).trigger('change');
+                            });
+                    }
+
+                    $status.addClass('text-success').text("<?= lang('Items.lookup_barcode_found') ?>");
+                })
+                .fail(function() {
+                    $status.addClass('text-danger').text("<?= lang('Items.lookup_barcode_error') ?>");
+                });
+        });
 
         init_validation();
     });
