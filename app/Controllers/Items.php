@@ -207,10 +207,119 @@ class Items extends Secure_Controller
      */
     public function getLookupBarcode(string $code = ''): ResponseInterface
     {
+        $lookup = $this->lookupBarcodeData($code);
+
+        if ($lookup === null) {
+            return $this->response->setJSON(['found' => false]);
+        }
+
+        return $this->response->setJSON([
+            'found'   => true,
+            'name'    => $lookup['name'],
+            'brand'   => $lookup['brand'],
+            'pic_url' => $lookup['pic_filename'] ? base_url('uploads/item_pics/' . $lookup['pic_filename']) : null
+        ]);
+    }
+
+    /**
+     * Shows the bulk barcode import screen (Fase 4): a technician pastes a
+     * list of codes and each one that Open Food Facts recognizes becomes a
+     * blocked/draft item, ready to be activated later (Estación 3-style)
+     * once it actually has stock.
+     * @noinspection PhpUnused
+     */
+    public function getBulkImportBarcode(): string
+    {
+        return view('items/bulk_import_barcode');
+    }
+
+    /**
+     * Creates one blocked/draft item per recognized barcode. Codes that are
+     * malformed, already in the catalog (active or blocked), or not found on
+     * Open Food Facts are just skipped and counted - this never partially
+     * fails the whole batch over one bad line.
+     * @noinspection PhpUnused
+     */
+    public function postBulkImportBarcode(): ResponseInterface
+    {
+        set_time_limit(240);
+
+        $codes = preg_split('/[\s,;]+/', (string)$this->request->getPost('codes'), -1, PREG_SPLIT_NO_EMPTY);
+        $codes = array_values(array_unique($codes));
+
+        if (empty($codes)) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Items.bulk_import_barcode_required')]);
+        }
+
+        $created = 0;
+        $notFound = 0;
+        $skipped = 0;
+
+        foreach ($codes as $code) {
+            $code = trim($code);
+
+            if ($code === '' || !ctype_digit($code) || strlen($code) > 14 || $this->item->exists($code, true)) {
+                $skipped++;
+                continue;
+            }
+
+            $lookup = $this->lookupBarcodeData($code);
+
+            if ($lookup === null) {
+                $notFound++;
+                continue;
+            }
+
+            $itemData = [
+                'name'                  => $lookup['name'],
+                'category'              => '',
+                'description'           => '',
+                'item_type'             => ITEM,
+                'stock_type'            => HAS_STOCK,
+                'cost_price'            => 0,
+                'unit_price'            => 0,
+                'reorder_level'         => 0,
+                'receiving_quantity'    => 1,
+                'allow_alt_description' => false,
+                'is_serialized'         => false,
+                'qty_per_pack'          => 1,
+                'pack_name'             => lang('Items.default_pack_name'),
+                'item_number'           => $code,
+                'deleted'               => true,
+                'hsn_code'              => ''
+            ];
+
+            if ($lookup['pic_filename']) {
+                $itemData['pic_filename'] = $lookup['pic_filename'];
+            }
+
+            if ($this->item->save_value($itemData, NEW_ENTRY)) {
+                $created++;
+
+                if ($lookup['brand'] !== '') {
+                    $this->saveBarcodeLookupBrand((int)$itemData['item_id'], $lookup['brand']);
+                }
+            } else {
+                $skipped++;
+            }
+        }
+
+        $message = sprintf(lang('Items.bulk_import_barcode_summary'), $created, $notFound, $skipped);
+
+        return $this->response->setJSON(['success' => true, 'message' => $message]);
+    }
+
+    /**
+     * Shared by the single-item lookup button and the bulk importer. Returns
+     * null on any failure (network, not found, malformed code) - callers
+     * decide what "not found" means for their flow, this never throws.
+     */
+    private function lookupBarcodeData(string $code): ?array
+    {
         $code = trim($code);
 
         if ($code === '' || !ctype_digit($code) || strlen($code) > 14) {
-            return $this->response->setJSON(['found' => false]);
+            return null;
         }
 
         try {
@@ -224,13 +333,13 @@ class Items extends Secure_Controller
 
             $data = json_decode($response->getBody(), true);
         } catch (\Throwable $e) {
-            log_message('error', 'getLookupBarcode: Open Food Facts request failed: ' . $e->getMessage());
+            log_message('error', 'lookupBarcodeData: Open Food Facts request failed: ' . $e->getMessage());
 
-            return $this->response->setJSON(['found' => false]);
+            return null;
         }
 
         if (empty($data['status']) || empty($data['product']['product_name'])) {
-            return $this->response->setJSON(['found' => false]);
+            return null;
         }
 
         $product = $data['product'];
@@ -239,19 +348,18 @@ class Items extends Secure_Controller
         $brand = $brands === '' ? '' : trim(explode(',', $brands)[0]);
         $imageUrl = $product['image_front_url'] ?? ($product['image_url'] ?? null);
 
-        return $this->response->setJSON([
-            'found'   => true,
-            'name'    => $name,
-            'brand'   => $brand,
-            'pic_url' => $imageUrl ? $this->downloadBarcodeLookupImage($imageUrl, $code) : null
-        ]);
+        return [
+            'name'         => $name,
+            'brand'        => $brand,
+            'pic_filename' => $imageUrl ? $this->downloadBarcodeLookupImage($imageUrl, $code) : null
+        ];
     }
 
     /**
-     * Downloads a looked-up product photo into uploads/item_pics/ so the
-     * browser can fetch it same-origin (avoids relying on the third party's
-     * CORS policy) and attach it to the normal file input. Returns null on
-     * any failure - a missing photo never blocks filling in name/brand.
+     * Downloads a looked-up product photo into uploads/item_pics/ and
+     * returns its filename (not a URL - callers store it as pic_filename or
+     * build a same-origin URL from it themselves). Returns null on any
+     * failure - a missing photo never blocks filling in name/brand.
      */
     private function downloadBarcodeLookupImage(string $imageUrl, string $code): ?string
     {
@@ -266,12 +374,28 @@ class Items extends Secure_Controller
             $filename = 'lookup_' . preg_replace('/[^0-9]/', '', $code) . '.jpg';
             file_put_contents(FCPATH . 'uploads/item_pics/' . $filename, $response->getBody());
 
-            return base_url('uploads/item_pics/' . $filename);
+            return $filename;
         } catch (\Throwable $e) {
-            log_message('error', 'getLookupBarcode: image download failed: ' . $e->getMessage());
+            log_message('error', 'lookupBarcodeData: image download failed: ' . $e->getMessage());
 
             return null;
         }
+    }
+
+    /**
+     * Sets the "Marca" attribute on a newly-imported item, if that attribute
+     * is configured on this install. Silently does nothing otherwise - the
+     * bulk importer never fails a row over a missing attribute definition.
+     */
+    private function saveBarcodeLookupBrand(int $itemId, string $brand): void
+    {
+        $definition = $this->attribute->getDefinitionByName('Marca');
+
+        if (empty($definition['definition_id'])) {
+            return;
+        }
+
+        $this->attribute->saveAttributeValue($brand, (int)$definition['definition_id'], $itemId, false, $definition['definition_type']);
     }
 
     /**
@@ -791,6 +915,12 @@ class Items extends Secure_Controller
         $reorderLevel = parse_quantity($this->request->getPost('reorder_level'));
         $qtyPerPack = parse_quantity($this->request->getPost('qty_per_pack') ?? '');
 
+        $stockLocations = $this->stock_location->get_undeleted_all()->getResultArray();
+        $totalQuantity = 0.0;
+        foreach ($stockLocations as $location) {
+            $totalQuantity += parse_quantity($this->request->getPost('quantity_' . $location['location_id']));
+        }
+
         // Save item data
         $itemData = [
             'name'                  => $this->request->getPost('name'),
@@ -809,7 +939,10 @@ class Items extends Secure_Controller
             'qty_per_pack'          => $this->request->getPost('qty_per_pack') == null ? 1 : parse_quantity($qtyPerPack),
             'pack_name'             => $this->request->getPost('pack_name') == null ? $defaultPackName : $this->request->getPost('pack_name'),
             'low_sell_item_id'      => $this->request->getPost('low_sell_item_id') === null ? $itemId : intval($this->request->getPost('low_sell_item_id')),
-            'deleted'               => $this->request->getPost('is_deleted') != null,
+            // A preloaded/blocked item (Fase 4 bulk import) unblocks itself
+            // the moment someone gives it real stock - no separate
+            // "activate" step needed beyond the normal edit-and-save.
+            'deleted'               => $this->request->getPost('is_deleted') != null && $totalQuantity <= 0,
             'hsn_code'              => $this->request->getPost('hsn_code') === null ? '' : $this->request->getPost('hsn_code')
         ];
 
@@ -868,7 +1001,6 @@ class Items extends Secure_Controller
             }
 
             // Save item quantity
-            $stockLocations = $this->stock_location->get_undeleted_all()->getResultArray();
             foreach ($stockLocations as $location) {
                 $updatedQuantity = parse_quantity($this->request->getPost('quantity_' . $location['location_id']));
 

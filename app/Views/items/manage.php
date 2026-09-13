@@ -77,6 +77,10 @@ use App\Models\Employee;
 <?= view('partial/table_filter_persistence', ['additional_params' => ['stock_location']]) ?>
 
 <div id="title_bar" class="btn-toolbar print_hide">
+    <button class="btn btn-info btn-sm pull-right modal-dlg" data-btn-submit="<?= lang('Items.bulk_import_barcode_submit') ?>" data-href="<?= "$controller_name/bulkImportBarcode" ?>" title="<?= lang('Items.bulk_import_barcode') ?>">
+        <span class="glyphicon glyphicon-barcode">&nbsp;</span><?= lang('Items.bulk_import_barcode') ?>
+    </button>
+
     <button class="btn btn-info btn-sm pull-right modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= "$controller_name/csvImport" ?>" title="<?= lang('Items.import_items_csv') ?>">
         <span class="glyphicon glyphicon-import">&nbsp;</span><?= lang('Common.import_csv') ?>
     </button>
